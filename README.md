@@ -1,132 +1,280 @@
 
-# 🧰 Elzero Backend
+# Mannova Backend
 
-This is a **backend API** project built with **NestJS**, **TypeORM**, and **PostgreSQL**.  
-The goal of this project is to provide a clean and secure authentication and user management system.
-
----
-
-## 🚀 Tech Stack
-
-- **NestJS** (Node.js Framework)  
-- **TypeScript**  
-- **TypeORM**  
-- **PostgreSQL**  
-- **JWT** Authentication  
-- **Bcrypt** for password hashing  
-- **Swagger / OpenAPI** for API documentation  
+**Mannova** is a backend system for an **online store**, built with **NestJS**, **TypeScript**, and **PostgreSQL**.  
+It provides secure authentication, role-based access, product and category management, shopping cart, and order processing.
 
 ---
 
-## ✨ Features
-
-- 📝 User registration  
-- 🔐 Login with JWT token  
-- 🔄 Password reset  
-- 🧭 Role-based access control  
-- 🧪 Input validation and error handling  
-- 📜 API documentation using Swagger  
-- 🧼 Secure password storage (bcrypt)  
-
----
-
-## ⚙️ Installation & Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Abdelrahman-Yaser/elzero-backend.git
-````
-
-2. **Navigate to the project folder**
-
-   ```bash
-   cd elzero-backend
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-4. **Create a `.env` file** in the root directory and add your environment variables:
-
-   ```env
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_USER=postgres
-   DB_PASS=password
-   DB_NAME=elzero_db
-   JWT_SECRET=your_jwt_secret
-   ```
-
-5. **Run the project**
-
-   ```bash
-   npm run start:dev
-   ```
-
-6. **Access Swagger Docs**
-
-   ```
-   http://localhost:3000/api/docs
-   ```
+## Table of Contents
+- [Technologies](#technologies)
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [API Documentation](#api-documentation)
+- [API Endpoints](#api-endpoints)
+- [Cart & Orders Workflow](#cart--orders-workflow)
+- [Error Handling & Validation](#error-handling--validation)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 🧪 Testing
+## Technologies
+- **NestJS** – Node.js framework for scalable server-side apps  
+- **TypeScript** – Strongly typed language  
+- **PostgreSQL** – Relational database  
+- **TypeORM** – ORM for database operations  
+- JWT Authentication  
+- bcrypt – Password hashing  
+- Validation & Error Handling  
+
+---
+
+## Features
+- User registration and login  
+- Role-based access control (**Admin / User**)  
+- Product management (CRUD)  
+- Category management (CRUD)  
+- Shopping cart management  
+- Order creation and tracking  
+- JWT-based authentication  
+- Swagger/OpenAPI documentation  
+
+---
+
+## Getting Started
+
+1. Clone the repository:
 
 ```bash
-# Unit tests
+git clone https://github.com/Abdelrahman-Yaser/elzero-backend.git
+cd elzero-backend
+````
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Set up PostgreSQL database:
+
+* Create a database, e.g., `mannova_db`
+* Update `.env` with your credentials
+
+4. Run the application:
+
+```bash
+npm run start:dev
+```
+
+5. API is available at:
+
+```
+http://localhost:3000
+```
+
+6. Swagger documentation (if enabled):
+
+```
+http://localhost:3000/api
+```
+
+---
+
+## Environment Variables
+
+Create a `.env` file:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=your_db_username
+DB_PASSWORD=your_db_password
+DB_NAME=mannova_db
+
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRES_IN=3600s
+```
+
+---
+
+## API Endpoints
+
+### Authentication
+
+* **POST /auth/register** – Register a new user
+* **POST /auth/login** – Login and receive JWT
+* **POST /auth/forgot-password** – Request password reset
+* **POST /auth/reset-password** – Reset password
+
+#### Example JSON
+
+```json
+// Register
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
+
+// Login Response
+{
+  "access_token": "jwt_token_here"
+}
+```
+
+---
+
+### Products
+
+* **GET /products** – List all products
+* **GET /products/:id** – Get product by ID
+* **POST /products** – Add product (Admin only)
+* **PUT /products/:id** – Update product (Admin only)
+* **DELETE /products/:id** – Delete product (Admin only)
+
+#### Example Product JSON
+
+```json
+{
+  "id": 1,
+  "name": "Laptop",
+  "description": "High-end gaming laptop",
+  "price": 1500,
+  "categoryId": 2
+}
+```
+
+---
+
+### Categories
+
+* **GET /categories** – List all categories
+* **POST /categories** – Add category (Admin only)
+
+#### Example Category JSON
+
+```json
+{
+  "id": 2,
+  "name": "Electronics"
+}
+```
+
+---
+
+### Cart
+
+* **POST /cart/add** – Add product to cart
+* **GET /cart** – View cart
+* **DELETE /cart/:itemId** – Remove item from cart
+
+#### Example Cart JSON
+
+```json
+{
+  "productId": 1,
+  "quantity": 2
+}
+```
+
+---
+
+### Orders
+
+* **POST /orders** – Create order from cart
+* **GET /orders** – List user orders
+* **GET /orders/:id** – Get order details
+
+#### Example Order JSON
+
+```json
+{
+  "id": 1,
+  "userId": 1,
+  "items": [
+    { "productId": 1, "quantity": 2 }
+  ],
+  "total": 3000,
+  "status": "pending"
+}
+```
+
+---
+
+## Cart & Orders Workflow
+
+1. **Add products to cart**
+2. **View cart** – Users can see items and quantities
+3. **Create order** – Converts all cart items into an order
+4. **Order status**:
+
+   * `pending` – Newly created
+   * `processing` – Payment verified
+   * `completed` – Order shipped
+   * `cancelled` – Order cancelled by user/admin
+
+> Only **Admin** can update products, categories, or view all orders/users. Users can only access their own cart and orders.
+
+---
+
+## Error Handling & Validation
+
+* **Validation Errors** – 400 Bad Request
+
+```json
+{
+  "statusCode": 400,
+  "message": ["name must be a string", "price must be a number"],
+  "error": "Bad Request"
+}
+```
+
+* **Unauthorized Access** – 401 Unauthorized
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials",
+  "error": "Unauthorized"
+}
+```
+
+* **Forbidden Action** – 403 Forbidden
+
+```json
+{
+  "statusCode": 403,
+  "message": "You do not have permission to perform this action",
+  "error": "Forbidden"
+}
+```
+
+---
+
+## Testing
+
+Run unit and e2e tests:
+
+```bash
 npm run test
-
-# E2E tests
 npm run test:e2e
-
-# Test coverage
-npm run test:cov
 ```
 
 ---
 
-## 🛡️ Security Notes
+## Contributing
 
-* Do not return sensitive fields such as `password` in API responses.
-* Always validate and sanitize user input.
-* Protect Swagger UI in production with authentication.
-* Use JWT tokens with expiration and proper role checks.
-* Avoid SQL injection by relying on TypeORM’s query builder and parameterized queries.
-
----
-
-## 📚 API Documentation
-
-Once the server is running, visit:
-
-```
-http://localhost:3000/api/docs
-```
-
-You can view all available endpoints, their request/response models, and test them directly.
+1. Fork the project
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit your changes: `git commit -m 'Add feature'`
+4. Push to your branch: `git push origin feature-name`
+5. Open a Pull Request
 
 ---
 
-## 👨‍💻 Author
 
-* **Abdelrahman Yaser**
-* GitHub: [@Abdelrahman-Yaser](https://github.com/Abdelrahman-Yaser)
 
----
-
-## 📜 License
-
-This project is licensed under the **MIT License**.
-Feel free to use it for personal or commercial projects.
-
-```
-
----
-
-لو حبيت أزود عليه سكشن خاص بـ “Endpoints Examples” (زي login/register response) أقدر أضيفه لك.  
-تحب أضيف أمثلة للـ API endpoints؟ 🔥📡
-```

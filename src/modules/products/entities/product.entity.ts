@@ -55,6 +55,4 @@ export class Product {
     onDelete: 'CASCADE',
   })
   sizes!: Size[];
-
-  stock!: number;
 }

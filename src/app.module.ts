@@ -48,7 +48,6 @@ import { AuthModule } from './modules/auth/auth.module';
       }),
     }),
 
-    // 3) EventEmitter - عشان الـ audit events
     EventEmitterModule.forRoot(),
 
     // 4) Modules
@@ -57,8 +56,6 @@ import { AuthModule } from './modules/auth/auth.module';
     ProductImagesModule,
     AuditModule,
     AuthModule,
-
-    // UsersModule, (لو عندك)
   ],
 })
 export class AppModule {}

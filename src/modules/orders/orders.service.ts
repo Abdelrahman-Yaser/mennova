@@ -15,17 +15,17 @@ export class OrdersService {
 
   async createOrder(createOrderDto: CreateOrderDto) {
     return await this.dataSource.transaction(async (manager) => {
-      // 1- إنشاء الأوردر نفسه
       const order = manager.create(OrderEntity, {
-        ...createOrderDto,
-        items: undefined, // عشان items هنعملها تحت
+        customername: createOrderDto.customerName,
+        customeremail: createOrderDto.customerEmail,
+        customerphone: createOrderDto.customerPhone,
       });
+
       await manager.save(order);
 
-      // 2- معالجة المنتجات اللي في الأوردر
+      // 2) حفظ كل عنصر من عناصر الطلب
       for (const item of createOrderDto.items) {
         const product = await manager.findOne(Product, {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           where: { id: item.productId },
         });
 
@@ -33,27 +33,28 @@ export class OrdersService {
           throw new NotFoundException(`Product ${item.productId} not found`);
         }
 
-        if (product.stock < item.quantity) {
+        if (product.stock_quantity < item.quantity) {
           throw new BadRequestException(
             `Not enough stock for product ${product.id}`,
           );
         }
 
-        // تقليل الكمية
-        product.stock -= item.quantity;
+        // تقليل المخزون
+        product.stock_quantity -= item.quantity;
         await manager.save(product);
 
-        // إنشاء orderItem وربطه بالأوردر
+        // إنشاء order item
         const orderItem = manager.create(OrderItem, {
           order,
-          product,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          productId: product.id,
+          productName: product.name, // أو item.productName
           quantity: item.quantity,
+          price: item.price, // ← مهم جدًا
         });
-        await manager.save(orderItem);
-      }
 
-      return order;
+        await manager.save(orderItem);
+        return orderItem;
+      }
     });
   }
 

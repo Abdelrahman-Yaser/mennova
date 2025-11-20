@@ -55,7 +55,7 @@ export class ProductsController {
       throw err;
     }
   }
-  @UseGuards(AuthGuard)
+
   @Get()
   async findAll(@Query('role') role: 'ADMIN' | 'ENGINEER') {
     try {
@@ -83,7 +83,7 @@ export class ProductsController {
       throw err;
     }
   }
-
+  @UseGuards(AuthGuard)
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     try {
@@ -97,7 +97,7 @@ export class ProductsController {
       throw err;
     }
   }
-
+  @UseGuards(AuthGuard)
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {

@@ -8,65 +8,97 @@ import { OrderEntity } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { DataSource } from 'typeorm';
+import { RedisService } from './../../redis/redis.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly redisService: RedisService, // استخدمنا ioredis
+  ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
-    return await this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const order = manager.create(OrderEntity, {
         customername: createOrderDto.customerName,
         customeremail: createOrderDto.customerEmail,
         customerphone: createOrderDto.customerPhone,
       });
 
-      await manager.save(order);
+      const savedOrder = await manager.save(order);
 
-      // 2) حفظ كل عنصر من عناصر الطلب
       for (const item of createOrderDto.items) {
         const product = await manager.findOne(Product, {
           where: { id: item.productId },
         });
 
-        if (!product) {
+        if (!product)
           throw new NotFoundException(`Product ${item.productId} not found`);
-        }
-
         if (product.stock_quantity < item.quantity) {
           throw new BadRequestException(
             `Not enough stock for product ${product.id}`,
           );
         }
 
-        // تقليل المخزون
         product.stock_quantity -= item.quantity;
         await manager.save(product);
 
-        // إنشاء order item
         const orderItem = manager.create(OrderItem, {
-          order,
+          order: savedOrder,
           productId: product.id,
-          productName: product.name, // أو item.productName
+          productName: product.name,
           quantity: item.quantity,
-          price: item.price, // ← مهم جدًا
+          price: item.price,
         });
 
         await manager.save(orderItem);
-        return orderItem;
       }
+      return savedOrder;
     });
+
+    // مسح الكاش بعد اضافة طلب
+    await this.redisService.del('all_orders');
+
+    return result;
   }
 
-  findAll() {
-    return `This action returns all orders`;
+  async findAll() {
+    const cacheKey = 'all_orders';
+    const cachedOrders = await this.redisService.get<OrderEntity[]>(cacheKey);
+
+    if (cachedOrders) return cachedOrders;
+
+    const orders = await this.dataSource.getRepository(OrderEntity).find({
+      relations: ['items'],
+    });
+
+    await this.redisService.set(cacheKey, orders, 300); // TTL 5 دقائق
+
+    return orders;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
+  async findOne(id: number) {
+    const cacheKey = `order_${id}`;
+    const cachedOrder = await this.redisService.get<OrderEntity>(cacheKey);
+    if (cachedOrder) return cachedOrder;
+
+    const order = await this.dataSource.getRepository(OrderEntity).findOne({
+      where: { id },
+      relations: ['items'],
+    });
+
+    if (!order) throw new NotFoundException(`Order #${id} not found`);
+
+    await this.redisService.set(cacheKey, order, 300);
+    return order;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+  async remove(id: number) {
+    await this.dataSource.getRepository(OrderEntity).delete(id);
+
+    await this.redisService.del(`order_${id}`);
+    await this.redisService.del('all_orders');
+
+    return { deleted: true };
   }
 }

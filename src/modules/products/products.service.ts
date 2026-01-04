@@ -6,6 +6,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { ProductImage } from '.././product-images/entities/product-image.entity';
 import { Size } from '../sizes/entities/size.entity';
 import { UpdateProductDto } from './dto/update_product.dto';
+import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class ProductsService {
@@ -18,22 +19,51 @@ export class ProductsService {
 
     @InjectRepository(Size)
     private readonly sizeRepository: Repository<Size>,
+    private readonly redisService: RedisService,
   ) {}
 
-  // Get all products with images
-  findAll(): Promise<Product[]> {
-    return this.productRepository.find({
+  // مفاتيح الكاش كـ constants لتجنب الأخطاء الإملائية
+  private readonly ALL_PRODUCTS_CACHE = 'all_products';
+  private readonly PRODUCT_CACHE_PREFIX = 'product_';
+
+  // جلب كل المنتجات
+  async findAll(): Promise<Product[]> {
+    const cachedProducts = await this.redisService.get<Product[]>(
+      this.ALL_PRODUCTS_CACHE,
+    );
+    if (cachedProducts) return cachedProducts;
+
+    const products = await this.productRepository.find({
       relations: ['images', 'sizes'],
-      order: {
-        images: { is_main: 'DESC' },
-      },
+      order: { images: { is_main: 'DESC' } },
     });
+
+    await this.redisService.set(this.ALL_PRODUCTS_CACHE, products, 3600);
+    return products;
   }
 
-  // Create new product
+  // جلب منتج واحد (أضفنا الكاش هنا أيضاً)
+  async findOne(id: string): Promise<Product> {
+    const cacheKey = `${this.PRODUCT_CACHE_PREFIX}${id}`;
+    const cachedProduct = await this.redisService.get<Product>(cacheKey);
+    if (cachedProduct) return cachedProduct;
+
+    const product = await this.productRepository.findOne({
+      where: { id: +id },
+      relations: ['images', 'sizes'],
+      order: { images: { is_main: 'DESC' } },
+    });
+
+    if (!product)
+      throw new NotFoundException(`Product with ID ${id} not found`);
+
+    await this.redisService.set(cacheKey, product, 3600);
+    return product;
+  }
+
+  // إنشاء منتج جديد
   async create(dto: CreateProductDto): Promise<Product> {
     const { images, sizes, ...baseData } = dto;
-
     const product = this.productRepository.create(baseData);
 
     if (images?.length) {
@@ -51,38 +81,13 @@ export class ProductsService {
 
     const savedProduct = await this.productRepository.save(product);
 
-    const fullProduct = await this.productRepository.findOne({
-      where: { id: savedProduct.id },
-      relations: ['images', 'sizes'],
-    });
+    // مسح كاش القائمة الشاملة لأن هناك منتج جديد أضيف
+    await this.redisService.del(this.ALL_PRODUCTS_CACHE);
 
-    if (!fullProduct) {
-      throw new NotFoundException(
-        `Product with ID ${savedProduct.id} not found`,
-      );
-    }
-
-    return fullProduct;
+    return this.findOne(savedProduct.id.toString());
   }
 
-  // Get product by ID
-  async findOne(id: string): Promise<Product> {
-    const product = await this.productRepository.findOne({
-      where: { id: +id },
-      relations: ['images', 'sizes'],
-      order: {
-        images: { is_main: 'DESC' },
-      },
-    });
-
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
-    }
-
-    return product;
-  }
-
-  // Update product with full sync
+  // تحديث المنتج
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
     const { images, sizes, ...baseData } = dto;
 
@@ -91,18 +96,14 @@ export class ProductsService {
       ...baseData,
     });
 
-    if (!product) {
+    if (!product)
       throw new NotFoundException(`Product with ID ${id} not found`);
-    }
 
-    // Images sync
     if (Array.isArray(images)) {
-      // امسح الصور القديمة وحط الجديدة
       await this.imageRepository.delete({ product: { id: +id } });
       product.images = images.map((img) => this.imageRepository.create(img));
     }
 
-    // Sizes sync
     if (Array.isArray(sizes)) {
       await this.sizeRepository.delete({ product: { id: +id } });
       product.sizes = sizes.map((s) =>
@@ -114,15 +115,24 @@ export class ProductsService {
     }
 
     await this.productRepository.save(product);
+
+    // --- تحديث الكاش ---
+    await this.redisService.del(this.ALL_PRODUCTS_CACHE); // امسح كاش الكل
+    await this.redisService.del(`${this.PRODUCT_CACHE_PREFIX}${id}`); // امسح كاش هذا المنتج تحديداً
+
     return this.findOne(id);
   }
 
-  // Delete product
+  // حذف منتج
   async remove(id: number): Promise<void> {
     const result = await this.productRepository.delete(id);
 
     if (result.affected === 0) {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
+
+    // --- مسح الكاش ---
+    await this.redisService.del(this.ALL_PRODUCTS_CACHE);
+    await this.redisService.del(`${this.PRODUCT_CACHE_PREFIX}${id}`);
   }
 }

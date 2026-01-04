@@ -16,6 +16,9 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuditEntity } from './modules/audit/entity';
 import { UserEntity } from './modules/auth/entities/user.entity';
 import { AuthModule } from './modules/auth/auth.module';
+import { RedisModule } from './redis/redis.module';
+import { StripeModule } from './stripe/stripe.module';
+
 @Module({
   imports: [
     // 1) تحميل المتغيرات من .env
@@ -50,12 +53,13 @@ import { AuthModule } from './modules/auth/auth.module';
 
     EventEmitterModule.forRoot(),
 
-    // 4) Modules
+    RedisModule, // 🔹 لازم يكون قبل OrdersModule
     ProductsModule,
     OrdersModule,
     ProductImagesModule,
     AuditModule,
     AuthModule,
+    StripeModule.forRootAsync(),
   ],
 })
 export class AppModule {}
